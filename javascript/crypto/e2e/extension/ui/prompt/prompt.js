@@ -747,11 +747,18 @@ ui.Prompt.prototype.executeAction_ = function(action, textArea, origin) {
                 // Just choose one private key for now.
                 signingKey = privateKeys[0];
               }
-              if (keys.length > 0 || passphrases.length > 0) {
-                // If encrypting the message, always add the sender key for him
-                // to be able to decrypt.
-                goog.array.extend(keys, this.getEncryptKeys_(
-                    [signerSelect.value]));
+              if (keys.length > 0 && !(passphrases.length > 0)) {
+                // If encrypting the message, and no passphrase is provided,
+                // add the sender's key to be able to decrypt.
+                // (If a passphrase is provided BY the sender, it should not
+                // be possible for the sender to decrypt the message without
+                // it; cf. password manager semantics.)
+                var senderKey = this.getEncryptKeys_([signerSelect.value]);
+                // If the sender's key is already present, don't include it
+                // again. (E.g., a message to self.)
+                if (!goog.array.contains(keys, senderKey)) {
+                  goog.array.extend(keys, senderKey);
+                }
               }
               this.pgpLauncher_.getContext()
                 .encryptSign(
