@@ -108,7 +108,7 @@
   function testGetCount() {
     assertEquals(e2e.openpgp.IteratedS2K.getCount_(96), 65536);
   }
-  function testParse() {
+ function testParse() {
     var expected = [  // Values: packet bytes, passphrase, expected key
       /* Simple with SHA1 */
       ["0002", "hello", "aaf4c61d"],
@@ -124,6 +124,39 @@
       var s2k = e2e.openpgp.S2k.parse(packet);
       assertArrayEquals(expected, s2k.getKey(passphrase, expected.length));
     });
+  }
+  function testParseFast() {
+    var expected = [  // Values: packet bytes, passphrase, expected key
+      /* Iterated with SHA1. 35651584 (f1 encoded) iterations, which is quite expensive. */
+      ["03020102030405060708f1", "hello", "f2a57b7c"],
+    ];
+    goog.array.forEach(expected, function(row) {
+      var packet = goog.crypt.hexToByteArray(row[0]);
+      var passphrase = goog.crypt.stringToByteArray(row[1]);
+      var expected = goog.crypt.hexToByteArray(row[2]);
+      var s2k = e2e.openpgp.S2k.parse(packet);
+      assertArrayEquals(expected, s2k.getKey(passphrase, expected.length));
+    });
+  }
+  function testParseSlow() {
+    var expected = [  // Values: packet bytes, passphrase, expected key
+      /* Iterated with SHA1. 35651584 (f1 encoded) iterations, which is quite expensive. */
+      ["03020102030405060708f1", "hello", "f2a57b7c"],
+    ];
+    goog.array.forEach(expected, function(row) {
+      var packet = goog.crypt.hexToByteArray(row[0]);
+      var passphrase = goog.crypt.stringToByteArray(row[1]);
+      var expected = goog.crypt.hexToByteArray(row[2]);
+      var s2k = e2e.openpgp.S2k.parse(packet);
+      assertArrayEquals(expected, s2k.getKeySlow(passphrase, expected.length));
+    });
+  }
+  function testSpeed() {
+    var packet = goog.crypt.hexToByteArray("03020102030405060708ff");
+    var passphrase = goog.crypt.stringToByteArray("hello");
+    var s2k = e2e.openpgp.S2k.parse(packet);
+    assertArrayEquals(s2k.getKeySlow(passphrase, 20),
+                      s2k.getKey(passphrase, 20));
   }
   function testSerialize() {
     var specifications = [

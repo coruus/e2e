@@ -26,6 +26,8 @@ goog.require('e2e.async.Result');
 goog.require('goog.array');
 goog.require('goog.crypt');
 goog.require('goog.math.Long');
+goog.require('goog.math');
+goog.require('goog.string');
 
 
 /**

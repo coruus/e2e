@@ -81,6 +81,8 @@ e2e.openpgp.S2k.prototype.type;
  *     the S2K algorithm.
  */
 e2e.openpgp.S2k.prototype.getKey = goog.abstractMethod;
+e2e.openpgp.S2k.prototype.getKeySlow = goog.abstractMethod;
+
 
 
 /**
@@ -219,6 +221,7 @@ e2e.openpgp.IteratedS2K = function(hash, salt, encodedCount) {
   goog.base(this, hash);
   // TODO(adhintz) See if salt length should be required to be 8. The RFC
   // specifies 8 bytes, but golang's tests use 4 byte salts.
+  // TODO(dlg) Tell Drew Hintz that it should be 8 bytes. Fix golang.
   if (!e2e.isByteArray(salt)) {
     throw new e2e.openpgp.error.InvalidArgumentsError('Invalid salt.');
   }
@@ -247,9 +250,58 @@ e2e.openpgp.IteratedS2K = function(hash, salt, encodedCount) {
 };
 goog.inherits(e2e.openpgp.IteratedS2K, e2e.openpgp.SimpleS2K);
 
-
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.type = e2e.openpgp.S2k.Type.ITERATED;
+
+e2e.openpgp.IteratedS2K.prototype.getKeyFast_ = function(salted_passphrase, count) {
+  this.hash.reset();
+  // TODO(dlg): why does `this.hash.block_size` not work?
+  // 64 bytes for SHA1, SHA2-256; 128 bytes for SHA2-512
+  var block_size = 64;
+  var reps = goog.math.safeCeil(block_size / salted_passphrase.length) + 1;
+  var block = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
+  //console.log("block", block, "block.length", block.length);
+  var i = 0;
+  while (i < count) {
+    var imods = goog.math.modulo(i, salted_passphrase.length);
+    var uplen = (block_size < count) ? block_size : count;
+    //console.log("imods", imods, "uplen", uplen, "i", i);
+    this.hash.update(
+      block.slice(imods, imods+uplen));
+    i = i + uplen;
+  }
+  var checksum = this.hash.digest();
+  return checksum;
+};
+
+/* TODO(dlg): Remove after further performance improvements. */
+e2e.openpgp.IteratedS2K.prototype.getKeySlow = function(passphrase, length) {
+  var salted_passphrase = this.salt_.concat(passphrase);
+  var count = this.count_;
+
+  if (count < salted_passphrase.length) {
+    count = salted_passphrase.length;
+  }
+
+  var num_zero_prepend = 0;
+  var hashed = [], original_length = length;
+  while (length > 0) { // Loop to handle when checksum len < length requested.
+    var iterated_passphrase_length = 0;
+    this.hash.reset();
+    this.hash.update(goog.array.repeat(0, num_zero_prepend));
+    while (iterated_passphrase_length < count) {
+      this.hash.update(
+          salted_passphrase.slice(0, count - iterated_passphrase_length));
+      // Might have added fewer bytes, but it's just an exit condition.
+      iterated_passphrase_length += salted_passphrase.length;
+    }
+    var checksum = this.hash.digest();
+    length -= checksum.length;
+    goog.array.extend(hashed, checksum);
+    num_zero_prepend += 1;
+  }
+  return hashed.slice(0, original_length);
+};
 
 
 /** @inheritDoc */
@@ -259,6 +311,14 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
 
   if (count < salted_passphrase.length) {
     count = salted_passphrase.length;
+  }
+
+  // TODO(dlg): Is there a less stupid way of finding out the length?
+  this.hash.reset();
+  var digest_length = this.hash.digest().length;
+
+  if ((salted_passphrase.length < 64) && (digest_length >= length)) {
+    return this.getKeyFast_(salted_passphrase, count).slice(0, length);
   }
 
   var num_zero_prepend = 0;
