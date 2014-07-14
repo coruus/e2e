@@ -29,7 +29,8 @@ goog.require('e2e.random');
  * Implements OpenPGP's variation of CFB mode. Defined in RFC 4880 Section 13.9.
  *
  * This implementation deviates from the specification; in particular, step 6 is
- * omitted. Instead, we emit two zero bytes.
+ * omitted when operating without resynchronization. Instead, we emit two
+ * zero bytes.
  *
  * (This is because the spec's method gives C[0:2] ^ C[16:18] = Encrypt(C[0:16]),
  * revealing two bytes of the underlying keystream. This can be used, as per
@@ -63,11 +64,12 @@ e2e.openpgp.Ocfb.prototype.encrypt = function(data, opt_unused_iv) {
   var rnd = e2e.random.getRandomBytes(this.cipher.blockSize);
 
   return this.cipher.encrypt(rnd).addCallback(function(ciphertext) {
-    ciphertext.push(0, 0);
     var iv;
     if (this.resync) {
+      ciphertext.push(ciphertext[0] ^ rnd[0], ciphertext[1] ^ rnd[1]);
       iv = ciphertext.slice(2, this.cipher.blockSize + 2);
     } else {
+      ciphertext.push(0, 0);
       iv = ciphertext.slice();
     }
     return this.cfb.encrypt(data, iv).addCallback(function(cfbData) {
