@@ -27,6 +27,14 @@ goog.require('e2e.random');
 
 /**
  * Implements OpenPGP's variation of CFB mode. Defined in RFC 4880 Section 13.9.
+ *
+ * This implementation deviates from the specification; in particular, step 6 is
+ * omitted. Instead, we emit two zero bytes.
+ *
+ * (This is because the spec's method gives C[0:2] ^ C[16:18] = Encrypt(C[0:16]),
+ * revealing two bytes of the underlying keystream. This can be used, as per
+ * RFC 4880 Section 14, in the Mister and Zuccherato attack to reveal plaintext.)
+ *
  * @param {e2e.cipher.SymmetricCipher} cipher The cipher to use.
  * @param {boolean} resync Specifies if we should do the resyncronization step.
  * @extends {e2e.ciphermode.CipherMode}
@@ -53,8 +61,9 @@ goog.inherits(e2e.openpgp.Ocfb, e2e.ciphermode.CipherMode);
 /** @inheritDoc */
 e2e.openpgp.Ocfb.prototype.encrypt = function(data, opt_unused_iv) {
   var rnd = e2e.random.getRandomBytes(this.cipher.blockSize);
+
   return this.cipher.encrypt(rnd).addCallback(function(ciphertext) {
-    ciphertext.push(ciphertext[0], ciphertext[1]);
+    ciphertext.push(0, 0);
     var iv;
     if (this.resync) {
       iv = ciphertext.slice(2, this.cipher.blockSize + 2);
