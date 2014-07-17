@@ -155,6 +155,7 @@
     var packet = goog.crypt.hexToByteArray("03020102030405060708ff");
     var passphrase = goog.crypt.stringToByteArray("hello");
     var s2k = e2e.openpgp.S2k.parse(packet);
+    s2k.getKey(passphrase, 20);
     assertArrayEquals(s2k.getKeySlow(passphrase, 20),
                       s2k.getKey(passphrase, 20));
   }

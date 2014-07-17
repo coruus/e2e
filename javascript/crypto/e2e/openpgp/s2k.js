@@ -285,7 +285,10 @@ e2e.openpgp.IteratedS2K.prototype.getKeySlow = function(passphrase, length) {
 
   var num_zero_prepend = 0;
   var hashed = [], original_length = length;
+  var i = 0;
   while (length > 0) { // Loop to handle when checksum len < length requested.
+    console.log(i);
+    i += 1;
     var iterated_passphrase_length = 0;
     this.hash.reset();
     this.hash.update(goog.array.repeat(0, num_zero_prepend));

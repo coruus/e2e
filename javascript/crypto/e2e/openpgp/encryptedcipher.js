@@ -189,7 +189,7 @@ e2e.openpgp.EncryptedCipher.prototype.getKeyDerivationS2k = function() {
 /**
  * @const {number} Default iterated salt for encrypting with a passphrase.
  */
-e2e.openpgp.EncryptedCipher.DEFAULT_COUNT = 96;
+e2e.openpgp.EncryptedCipher.DEFAULT_COUNT = 255;
 
 
 /**
@@ -232,8 +232,9 @@ e2e.openpgp.EncryptedCipher.prototype.lockKey = function(
         cipher.blockSize);
     var count = e2e.openpgp.EncryptedCipher.DEFAULT_COUNT;
     // TODO(evn): Maybe we can use a cheaper function here instead of sha1.
+    // TODO(dlg): Maybe we can make Sha256 faster than Sha1.
     this.s2k_ = new e2e.openpgp.IteratedS2K(
-        new e2e.hash.Sha1, salt, count);
+        new e2e.hash.Sha256, salt, count);
     var symCipher = /** @type {e2e.cipher.SymmetricCipher} */ (
         e2e.openpgp.constants.getInstance(
             e2e.openpgp.constants.Type.SYMMETRIC_KEY,
