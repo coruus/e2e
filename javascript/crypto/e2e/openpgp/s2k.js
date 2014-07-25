@@ -15,6 +15,8 @@
 /**
  * @fileoverview Implements RFC 4880 String to Key specification.
  * @author evn@google.com (Eduardo Vela)
+ * @author adhintz@google.com (Drew Hintz)
+ * @author coruus@gmail.com (David Leon Gil)
  */
 
 goog.provide('e2e.openpgp.DummyS2k');
@@ -31,8 +33,8 @@ goog.require('e2e.openpgp.error.InvalidArgumentsError');
 goog.require('e2e.openpgp.error.ParseError');
 goog.require('e2e.openpgp.error.UnsupportedError');
 goog.require('goog.array');
-goog.require('goog.math');
 goog.require('goog.asserts');
+goog.require('goog.math');
 goog.require('goog.object');
 
 
@@ -406,9 +408,10 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
     count = salted_passphrase.length;
   }
 
-  // TODO(dlg for whomever merges code where this.hash.blockSize defined):
-  // uncomment this.hash.blockSize when merged
-  var block_size = 64;//this.hash.blockSize;
+  // Construct an array with multiple copies of salted_passphrase. This enables
+  // us to pass block_size chunks of salted_passphrase into the hash function.
+  // This runs twice as fast as the naive approach.
+  var block_size = this.hash.blockSize;
   var reps = goog.math.safeCeil(block_size / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
@@ -416,14 +419,27 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   var hashed = [], original_length = length;
   while (length > 0) { // Loop to handle when checksum len < length requested.
     this.hash.reset();
-    // TODO(adhintz) If num_zero_prepend > 0, align hash input to block_size.
-    this.hash.update(goog.array.repeat(0, num_zero_prepend));
-    var i = 0;
-    while (i + num_zero_prepend < count) {
-      var offset = goog.math.modulo(i, salted_passphrase.length);
-      var size = (block_size < count) ? block_size : count;
+    var remaining = count;  // Number of input bytes we still want.
+    if (num_zero_prepend > 0) {
+      if (num_zero_prepend > remaining) {
+        num_zero_prepend = remaining;
+      }
+      var firstRound = goog.array.repeat(0, num_zero_prepend);
+      // Align initial hash input size to block size.
+      var size = (block_size < remaining) ? block_size : remaining;
+      size -= num_zero_prepend;
+      if (size < 0) {
+        size = 0;
+      }
+      goog.array.extend(firstRound, repeated.slice(0, size));
+      this.hash.update(firstRound);
+      remaining -= size;
+    }
+    while (remaining > 0) {
+      var offset = (count - remaining) % salted_passphrase.length;
+      var size = (block_size < remaining) ? block_size : remaining;
       this.hash.update(repeated.slice(offset, offset + size));
-      i = i + size;
+      remaining -= size;
     }
     var checksum = this.hash.digest();
     length -= checksum.length;
@@ -432,6 +448,7 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   }
   return hashed.slice(0, original_length);
 };
+
 
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.serialize = function() {
