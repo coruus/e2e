@@ -31,6 +31,7 @@ goog.require('e2e.openpgp.error.InvalidArgumentsError');
 goog.require('e2e.openpgp.error.ParseError');
 goog.require('e2e.openpgp.error.UnsupportedError');
 goog.require('goog.array');
+goog.require('goog.math');
 goog.require('goog.asserts');
 goog.require('goog.object');
 
@@ -360,6 +361,35 @@ goog.inherits(e2e.openpgp.IteratedS2K, e2e.openpgp.SimpleS2K);
 e2e.openpgp.IteratedS2K.prototype.type = e2e.openpgp.S2k.Type.ITERATED;
 
 
+e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
+  var salted_passphrase = this.salt_.concat(passphrase);
+  var count = this.count_;
+
+  var reps = goog.math.safeCeil(128 / salted_passphrase.length) + 1;
+  console.log(reps);
+  var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
+
+  // The longest orbit is 64.
+  var schedules = new Array(64);
+  var sha = new goog.crypt.Sha256();
+  for (var i = 0; i < 64; i += 1) {
+    //console.log("schedule", i>>6);
+    //console.log(i, i+64, repeated.slice(i, i + 64));
+    schedules[i] = sha.preschedule(repeated.slice(i, i + 64));
+  }
+  var i = 0;
+  console.log(count);
+  while ((count - i) > 0) {
+    var offset = goog.math.modulo(i, salted_passphrase.length);
+    //console.log("offset", offset);
+    sha.scheduledUpdate(schedules[offset]);
+    i += 64;
+  }
+  //console.log(count);
+  return sha.digest().slice(0, length);
+}
+
+
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   var salted_passphrase = this.salt_.concat(passphrase);
@@ -369,17 +399,22 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
     count = salted_passphrase.length;
   }
 
+  var block_size = 64;//this.hash.blockSize;
+  var reps = goog.math.safeCeil(block_size / salted_passphrase.length) + 1;
+  var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
+
   var num_zero_prepend = 0;
   var hashed = [], original_length = length;
   while (length > 0) { // Loop to handle when checksum len < length requested.
-    var iterated_passphrase_length = 0;
     this.hash.reset();
+    // TODO(adhintz) If num_zero_prepend > 0, align hash input to block_size.
     this.hash.update(goog.array.repeat(0, num_zero_prepend));
-    while (iterated_passphrase_length < count) {
-      this.hash.update(
-          salted_passphrase.slice(0, count - iterated_passphrase_length));
-      // Might have added fewer bytes, but it's just an exit condition.
-      iterated_passphrase_length += salted_passphrase.length;
+    var i = 0;
+    while (i + num_zero_prepend < count) {
+      var offset = goog.math.modulo(i, salted_passphrase.length);
+      var size = (block_size < count) ? block_size : count;
+      this.hash.update(repeated.slice(offset, offset + size));
+      i = i + size;
     }
     var checksum = this.hash.digest();
     length -= checksum.length;
@@ -388,7 +423,6 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   }
   return hashed.slice(0, original_length);
 };
-
 
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.serialize = function() {
