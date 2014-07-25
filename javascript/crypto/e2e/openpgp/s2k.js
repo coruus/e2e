@@ -361,34 +361,41 @@ goog.inherits(e2e.openpgp.IteratedS2K, e2e.openpgp.SimpleS2K);
 e2e.openpgp.IteratedS2K.prototype.type = e2e.openpgp.S2k.Type.ITERATED;
 
 
+// TODO Need to integrate; could either substitute method on S2K object
+// creation, or dispatch from getKey.
 e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
+  // Currently only handles short passphrases.
+  // TODO Extend to longer inputs. (Chrome appears to be doing GC every 3.5 MB,
+  // so profitable up to very long inputs, if that is dominant effect.)
+  goog.asserts.assert(passphrase.length <= 56);
+
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
+  // TODO This is more than is necessary.
   var reps = goog.math.safeCeil(128 / salted_passphrase.length) + 1;
-  console.log(reps);
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
-  // The longest orbit is 64.
+  // The longest (single-block) orbit is 64.
   var schedules = new Array(64);
   var sha = new goog.crypt.Sha256();
+  // Generate the precalculated message schedules.
   for (var i = 0; i < 64; i += 1) {
-    //console.log("schedule", i>>6);
-    //console.log(i, i+64, repeated.slice(i, i + 64));
     schedules[i] = sha.preschedule(repeated.slice(i, i + 64));
   }
+  // Update the digest state using prescheduled input.
+  // TODO?? Might be more efficient to transfer modulo to shorter loop;
+  // likely not worth trouble.
   var i = 0;
-  console.log(count);
   while ((count - i) > 0) {
     var offset = goog.math.modulo(i, salted_passphrase.length);
-    //console.log("offset", offset);
     sha.scheduledUpdate(schedules[offset]);
     i += 64;
+    // By definition, count == k2^(6+n), where k, n >= 0, so count
+    // is always divisible by 64.
   }
-  //console.log(count);
   return sha.digest().slice(0, length);
 }
-
 
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
@@ -399,6 +406,8 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
     count = salted_passphrase.length;
   }
 
+  // TODO(dlg for whomever merges code where this.hash.blockSize defined):
+  // uncomment this.hash.blockSize when merged
   var block_size = 64;//this.hash.blockSize;
   var reps = goog.math.safeCeil(block_size / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
