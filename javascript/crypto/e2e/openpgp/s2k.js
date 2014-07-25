@@ -363,8 +363,14 @@ goog.inherits(e2e.openpgp.IteratedS2K, e2e.openpgp.SimpleS2K);
 e2e.openpgp.IteratedS2K.prototype.type = e2e.openpgp.S2k.Type.ITERATED;
 
 
-// TODO Need to integrate; could either substitute method on S2K object
-// creation, or dispatch from getKey.
+// TODO Integrate; could either substitute method on S2K object creation,
+// or dispatch from getKey.
+/**
+ * Helper to compute SHA2-256 S2K faster.
+ *
+ * @param {e2e.ByteArray|string} passphrase Must be 56 bytes or less.
+ * @param {number} length Length of requested output. Must be <= 32.
+ */
 e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
   // Currently only handles short passphrases.
   // TODO Extend to longer inputs. (Chrome appears to be doing GC every 3.5 MB,
@@ -378,9 +384,10 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
   var reps = goog.math.safeCeil(128 / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
-  // The longest (single-block) orbit is 64.
+  var numschedules = (64 > passphrase.length) ? 64 : length;
   var schedules = new Array(64);
   var sha = new goog.crypt.Sha256();
+
   // Generate the precalculated message schedules.
   for (var i = 0; i < 64; i += 1) {
     schedules[i] = sha.preschedule(repeated.slice(i, i + 64));
@@ -401,6 +408,9 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
 
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
+  // 16 * 16 = 256-byte MD5 key????
+  // 64 * 16 = 1024-byte SHA2 key??
+  goog.asserts.assert(length <= 256);
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
@@ -412,6 +422,7 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   // us to pass block_size chunks of salted_passphrase into the hash function.
   // This runs twice as fast as the naive approach.
   var block_size = this.hash.blockSize;
+  goog.asserts.assert(block_size >= 64); // 16 achieved for MD5, SHA1
   var reps = goog.math.safeCeil(block_size / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
@@ -421,13 +432,13 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
     this.hash.reset();
     var remaining = count;  // Number of input bytes we still want.
     if (num_zero_prepend > 0) {
-      if (num_zero_prepend > remaining) {
-        num_zero_prepend = remaining;
-      }
+      goog.asserts.assert(num_zero_prepend <= 16);
+      // TODO(dlg): need MD5 KAT with 256-byte output...
       var firstRound = goog.array.repeat(0, num_zero_prepend);
-      // Align initial hash input size to block size.
+      // min(block_size) == 64, and min(remaining==count) == 64, so...
       var size = (block_size < remaining) ? block_size : remaining;
       size -= num_zero_prepend;
+      goog.asserts.assert(size > 0);
       if (size < 0) {
         size = 0;
       }
@@ -436,7 +447,7 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
       remaining -= size;
     }
     while (remaining > 0) {
-      var offset = (count - remaining) % salted_passphrase.length;
+      var offset = goog.math.modulo((count - remaining), salted_passphrase.length);
       var size = (block_size < remaining) ? block_size : remaining;
       this.hash.update(repeated.slice(offset, offset + size));
       remaining -= size;
