@@ -373,23 +373,21 @@ e2e.openpgp.IteratedS2K.prototype.type = e2e.openpgp.S2k.Type.ITERATED;
  */
 e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
   // Currently only handles short passphrases.
-  // TODO Extend to longer inputs. (Chrome appears to be doing GC every 3.5 MB,
-  // so profitable up to very long inputs, if that is dominant effect.)
-  goog.asserts.assert(passphrase.length <= 56);
+  // TODO Test on very long inputs.
 
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
-  // TODO This is more than is necessary.
+  // TODO Is this more than necessary?
   var reps = goog.math.safeCeil(128 / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
-  var numschedules = (64 > passphrase.length) ? 64 : length;
-  var schedules = new Array(64);
+  var numschedules = (64 > passphrase.length) ? 64 : passphrase.length;
+  var schedules = new Array(numschedules);
   var sha = new goog.crypt.Sha256();
 
   // Generate the precalculated message schedules.
-  for (var i = 0; i < 64; i += 1) {
+  for (var i = 0; i < numschedules; i += 1) {
     schedules[i] = sha.preschedule(repeated.slice(i, i + 64));
   }
   // Update the digest state using prescheduled input.
