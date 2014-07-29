@@ -162,32 +162,57 @@
 
   function testPrescheduled() {
       var count = 0xff;
+
+      // Short passphrases.
       var iss2k = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha256,
-                                      [1, 2, 3, 4, 5, 6, 7, 8],
-                                      count);
-      // 9 + 8 == 17
+                                              [1, 2, 3, 4, 5, 6, 7, 8],
+                                              count);
       var passphrase = goog.crypt.stringToByteArray("passphras");
-      var accel = iss2k.getKeySha256_(passphrase, 32);
+      var accel = iss2k.getKey(passphrase, 32);
+      iss2k.useShaFastPath_ = false;
       var regular = iss2k.getKey(passphrase, 32);
-     // accel = iss2k.getKeySha256_(passphrase, 32);
+      assertArrayEquals(regular, accel);
+
+      // Long passphrases.
+      var iss2k = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha256,
+                                              [1, 2, 3, 4, 5, 6, 7, 8],
+                                              count);
+      var passphrase = goog.crypt.stringToByteArray(goog.string.repeat("passphras", 100));
+      var accel = iss2k.getKey(passphrase, 32);
+      iss2k.useShaFastPath_ = false;
+      var regular = iss2k.getKey(passphrase, 32);
       assertArrayEquals(regular, accel);
    }
 
-function testPerf() {
-        var count = 0xff;
-      var iss2k = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha256,
-                                      [1, 2, 3, 4, 5, 6, 7, 8],
-                                      count);
-      // 9 + 8 == 17
-      var passphrase = goog.crypt.stringToByteArray("passphras");
-  var tests = [];
-  e2e.testing.Util.addBenchmark(tests,
-      function () { iss2k.getKeySha256_(passphrase, 32); },
-      'accel');
-  e2e.testing.Util.addBenchmark(tests,
-      function () { iss2k.getKey(passphrase, 32); },
-      'plain');
+  function testPerf() {
+    var count = 0xff;
 
-  return e2e.testing.Util.runPerfTests(tests, 10, 10000);
+    // The accelerated path for SHA2-256 only.
+    var iss2k = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha256,
+                                           [1, 2, 3, 4, 5, 6, 7, 8],
+                                           count);
+    var passphrase = goog.crypt.stringToByteArray("passphras");
+    var tests = [];
+    e2e.testing.Util.addBenchmark(tests,
+        function () { iss2k.getKey(passphrase, 32); },
+        'accelerated SHA2-256');
+
+    // The regular path.
+    var iss2k_plain = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha256,
+                                                 [1, 2, 3, 4, 5, 6, 7, 8],
+                                                 count);
+    iss2k_plain.useShaFastPath_ = false;
+    e2e.testing.Util.addBenchmark(tests,
+        function () { iss2k_plain.getKey(passphrase, 32); },
+        'plain SHA2-256');
+
+    // SHA-1 for comparison.
+    var iss2k_sha1 = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha1,
+                                                 [1, 2, 3, 4, 5, 6, 7, 8],
+                                                 count);
+    e2e.testing.Util.addBenchmark(tests,
+        function () { iss2k_sha1.getKey(passphrase, 32); },
+        'plain SHA1');
+    return e2e.testing.Util.runPerfTests(tests, 10, 10000);
   };
 </script>

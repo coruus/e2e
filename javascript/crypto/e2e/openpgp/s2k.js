@@ -354,6 +354,12 @@ e2e.openpgp.IteratedS2K = function(hash, salt, encodedCount) {
    * @private
    */
   this.count_ = e2e.openpgp.IteratedS2K.getCount_(encodedCount);
+  /**
+   * Whether to use the fast path for SHA2-256.
+   * @type {number}
+   * @private
+   */
+  this.useShaFastPath_ = true;
 };
 goog.inherits(e2e.openpgp.IteratedS2K, e2e.openpgp.SimpleS2K);
 
@@ -362,26 +368,28 @@ goog.inherits(e2e.openpgp.IteratedS2K, e2e.openpgp.SimpleS2K);
 e2e.openpgp.IteratedS2K.prototype.type = e2e.openpgp.S2k.Type.ITERATED;
 
 
-// TODO Integrate; could either substitute method on S2K object creation,
-// or dispatch from getKey.
 /**
  * Helper to compute SHA2-256 S2K faster.
  *
- * @param {e2e.ByteArray|string} passphrase Must be 56 bytes or less.
+ * Only supports output lengths up to 32 bytes. (Please don't make this function
+ * more complicated by adding support for longer outputs: this is never
+ * needed.)
+ *
+ * (This technique can be applied to SHA2-64b instances, but preschedule(message)
+ * and scheduledUpdate(message) need to be added in closure/goog/crypt/sha2_64b.js.)
+ *
+ * @private
+ * @param {e2e.ByteArray|string} passphrase The passphrase to derive a key from.
  * @param {number} length Length of requested output. Must be <= 32.
  */
 e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
-  // Currently only handles short passphrases.
-  // TODO Test on very long inputs.
-
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
-  // TODO Is this more than necessary?
   var reps = Math.ceil(128 / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
-  var numschedules = (64 > passphrase.length) ? 64 : passphrase.length;
+  var numschedules = (64 > passphrase.length) ? 64 : (passphrase.length + 64);
   var schedules = new Array(numschedules);
   var sha = new goog.crypt.Sha256();
 
@@ -390,22 +398,27 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
     schedules[i] = sha.preschedule(repeated.slice(i, i + 64));
   }
   // Update the digest state using prescheduled input.
-  // TODO?? Might be more efficient to transfer modulo to shorter loop;
-  // likely not worth trouble.
   var i = 0;
   while ((count - i) > 0) {
     var offset = i % salted_passphrase.length;
     sha.scheduledUpdate(schedules[offset]);
     i += 64;
     // By definition, count == k2^(6+n), where k, n >= 0, so count
-    // is always divisible by 64.
+    // is always divisible by 64. (Note: If extended to SHA2-64b,
+    // note that count is not always divisible by 128. c=1 is the
+    // first counterexample.)
   }
   return sha.digest().slice(0, length);
 }
 
+
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
-  //return this.getKeySha256_(passphrase, length);
+  if ((this.hash.algorithm === e2e.hash.Algorithm.SHA256)
+      && (length <= 32)
+      && this.useShaFastPath_) {
+        return this.getKeySha256_(passphrase, length);
+  }
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
