@@ -34,7 +34,6 @@ goog.require('e2e.openpgp.error.ParseError');
 goog.require('e2e.openpgp.error.UnsupportedError');
 goog.require('goog.array');
 goog.require('goog.asserts');
-goog.require('goog.math');
 goog.require('goog.object');
 
 
@@ -406,9 +405,6 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
 
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
-  // 16 * 16 = 256-byte MD5 key????
-  // 64 * 16 = 1024-byte SHA2 key??
-  goog.asserts.assert(length <= 256);
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
@@ -420,9 +416,12 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   // us to pass block_size chunks of salted_passphrase into the hash function.
   // This runs twice as fast as the naive approach.
   var block_size = this.hash.blockSize;
-  goog.asserts.assert(block_size >= 64); // 16 achieved for MD5, SHA1
-  var reps = goog.math.safeCeil(block_size / salted_passphrase.length) + 1;
+  var reps = Math.ceil(block_size / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
+  var slices = [];
+  for (var i = 0; i < salted_passphrase.length; i++) {
+    slices.push(repeated.slice(i, i + block_size));
+  }
 
   var num_zero_prepend = 0;
   var hashed = [], original_length = length;
@@ -430,10 +429,8 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
     this.hash.reset();
     var remaining = count;  // Number of input bytes we still want.
     if (num_zero_prepend > 0) {
-      goog.asserts.assert(num_zero_prepend <= 16);
-      // TODO(dlg): need MD5 KAT with 256-byte output...
       var firstRound = goog.array.repeat(0, num_zero_prepend);
-      // min(block_size) == 64, and min(remaining==count) == 64, so...
+      // Align initial hash input size to block size.
       var size = (block_size < remaining) ? block_size : remaining;
       size -= num_zero_prepend;
       goog.asserts.assert(size > 0);
@@ -445,9 +442,13 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
       remaining -= size;
     }
     while (remaining > 0) {
-      var offset = goog.math.modulo((count - remaining), salted_passphrase.length);
+      var offset = (count - remaining) % salted_passphrase.length;
       var size = (block_size < remaining) ? block_size : remaining;
-      this.hash.update(repeated.slice(offset, offset + size));
+      if (size == block_size) {
+        this.hash.update(slices[offset]);
+      } else {
+       this.hash.update(repeated.slice(offset, offset + size));
+      }
       remaining -= size;
     }
     var checksum = this.hash.digest();
