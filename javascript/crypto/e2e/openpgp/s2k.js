@@ -378,7 +378,7 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
   var count = this.count_;
 
   // TODO Is this more than necessary?
-  var reps = goog.math.safeCeil(128 / salted_passphrase.length) + 1;
+  var reps = Math.ceil(128 / salted_passphrase.length) + 1;
   var repeated = goog.array.flatten(goog.array.repeat(salted_passphrase, reps));
 
   var numschedules = (64 > passphrase.length) ? 64 : passphrase.length;
@@ -394,7 +394,7 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
   // likely not worth trouble.
   var i = 0;
   while ((count - i) > 0) {
-    var offset = goog.math.modulo(i, salted_passphrase.length);
+    var offset = i % salted_passphrase.length;
     sha.scheduledUpdate(schedules[offset]);
     i += 64;
     // By definition, count == k2^(6+n), where k, n >= 0, so count
@@ -405,6 +405,7 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
 
 /** @inheritDoc */
 e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
+  //return this.getKeySha256_(passphrase, length);
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
 
@@ -447,7 +448,7 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
       if (size == block_size) {
         this.hash.update(slices[offset]);
       } else {
-       this.hash.update(repeated.slice(offset, offset + size));
+        this.hash.update(repeated.slice(offset, offset + size));
       }
       remaining -= size;
     }

@@ -19,6 +19,7 @@
 <script src="s2k.js"></script>
 <script>
   goog.require('e2e.openpgp.S2k');
+  goog.require('e2e.testing.Util');
   goog.require('e2e.hash.Sha1');
   goog.require('e2e.hash.Sha256');
   goog.require('goog.array');
@@ -171,4 +172,22 @@
      // accel = iss2k.getKeySha256_(passphrase, 32);
       assertArrayEquals(regular, accel);
    }
+
+function testPerf() {
+        var count = 0xff;
+      var iss2k = new e2e.openpgp.IteratedS2K(new e2e.hash.Sha256,
+                                      [1, 2, 3, 4, 5, 6, 7, 8],
+                                      count);
+      // 9 + 8 == 17
+      var passphrase = goog.crypt.stringToByteArray("passphras");
+  var tests = [];
+  e2e.testing.Util.addBenchmark(tests,
+      function () { iss2k.getKeySha256_(passphrase, 32); },
+      'accel');
+  e2e.testing.Util.addBenchmark(tests,
+      function () { iss2k.getKey(passphrase, 32); },
+      'plain');
+
+  return e2e.testing.Util.runPerfTests(tests, 10, 10000);
+  };
 </script>
