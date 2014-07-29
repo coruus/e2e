@@ -49,26 +49,6 @@ goog.inherits(e2e.openpgp.Ocfb, e2e.ciphermode.CipherMode);
 
 
 /** @inheritDoc */
-e2e.openpgp.Ocfb.prototype.encrypt = function(data, opt_iv) {
-  var rnd = e2e.random.getRandomBytes(this.cipher.blockSize);
-  return this.cipher.encrypt(rnd).addCallback(function(ciphertext) {
-    // Generate a bad resync on purpose. See Issue 114.
-    // https://eprint.iacr.org/2005/033.pdf
-    ciphertext.push(0xBA, 0xDD);
-    var iv;
-    if (this.resync) {
-      iv = ciphertext.slice(2, this.cipher.blockSize + 2);
-    } else {
-      iv = ciphertext.slice();
-    }
-    return this.cfb.encrypt(data, iv).addCallback(function(cfbData) {
-      return ciphertext.concat(cfbData);
-    });
-  }, this);
-};
-
-
-/** @inheritDoc */
 e2e.openpgp.Ocfb.prototype.decrypt = function(data, opt_iv) {
   var iv;
   if (this.resync) {
