@@ -85,6 +85,7 @@ goog.inherits(e2e.openpgp.block.EncryptedMessage,
  */
 e2e.openpgp.block.EncryptedMessage.prototype.decrypt = function(
     getKeyForSessionKeyCallback, passphraseCallback) {
+
   // Search for a secret key that can decrypt the session key. foundSecretKeys
   // will contain an entry for each of eskPackets. Some entries might be null
   // e.g. when eskPacket is for a passhphrase.
@@ -129,7 +130,7 @@ e2e.openpgp.block.EncryptedMessage.prototype.decryptCallback_ = function(
     return valid[1];
   }
   throw new e2e.openpgp.error.DecryptError(
-      'Encrypted message decryption failed.');
+      'Couldn\'t decrypt the message.');
 };
 
 
@@ -167,7 +168,7 @@ e2e.openpgp.block.EncryptedMessage.prototype.decryptKeyAndMessage_ = function(
   return decryptSuccess.addCallback(function(success) {
     if (!success) {
       throw new e2e.openpgp.error.DecryptError(
-          'Session key decryption failed.');
+          'Couldn\'t decrypt the encrypted session key used to encrypt the message.');
     }
     return this.decryptMessage_(eskPacket);
   }, this);
@@ -190,7 +191,7 @@ e2e.openpgp.block.EncryptedMessage.prototype.decryptWithPassphrase_ = function(
         return esk instanceof e2e.openpgp.packet.SymmetricKey;
       });
   if (symEskPackets.length == 0) {
-    throw new e2e.openpgp.error.DecryptError('No keys found for message.');
+    throw new e2e.openpgp.error.DecryptError('No passphrase-protected session key packet found.');
   }
   // try to find the correct passphrase
   this.silencePassphraseCallback_ = false;
@@ -209,7 +210,7 @@ e2e.openpgp.block.EncryptedMessage.prototype.decryptWithPassphrase_ = function(
           if (this.silencePassphraseCallback_ ||
               !this.repeatPassphraseCallback_) {
             throw new e2e.openpgp.error.DecryptError(
-                'Passphrase decryption failed');
+                'Couldn\'t decrypt the message with the provided passphrase.');
           } else {
             passphraseCallback('', decryptCallback);
           }
@@ -269,7 +270,12 @@ e2e.openpgp.block.EncryptedMessage.prototype.testPassphraseKey_ = function(
     // e2e.openpgp.error.DecryptError - when the ESK incorrectly
     // decrypts, the ESK cipher byte happens to be valid, the SEIP
     // cipher byte happens to be valid, but the SEIP decryption fails
-    // the duplicated two bytes and/or MDC check.
+    // the MDC check.
+    // TODO(dlg): Should the third be differentiated better? Has less
+    // than a chance in (12/256)^2 (0.22%) of occurring accidentally.
+    // Can further reduce p by checking that the interior parses...
+    // (Since this code seems to only be intended for human-facing uses,
+    // the decryption oracle problem is rather less present.)
     if ((e instanceof e2e.cipher.Error) ||
         (e instanceof e2e.openpgp.error.PassphraseError) ||
         (e instanceof e2e.openpgp.error.DecryptError)) {
@@ -293,7 +299,7 @@ e2e.openpgp.block.EncryptedMessage.prototype.testPassphraseKey_ = function(
 e2e.openpgp.block.EncryptedMessage.prototype.decryptMessage_ = function(
     eskPacket) {
   if (!goog.isDef(eskPacket.symmetricAlgorithm)) {
-    throw new e2e.openpgp.error.DecryptError('Invalid session key packet.');
+    throw new e2e.openpgp.error.DecryptError('Invalid session key packet: the symmetric encryption algorithm is unknown.');
   }
   this.encryptedData.decrypt(
       eskPacket.symmetricAlgorithm, eskPacket.getSessionKey());
@@ -308,7 +314,7 @@ e2e.openpgp.block.EncryptedMessage.prototype.decryptMessage_ = function(
       return decryptedBlock;
     }
   }
-  throw new e2e.openpgp.error.ParseError('Invalid decrypted message.');
+  throw new e2e.openpgp.error.ParseError('The message decrypted, but there was no valid OpenPGP message inside.');
 };
 
 
@@ -320,12 +326,16 @@ e2e.openpgp.block.EncryptedMessage.prototype.parse = function(packets) {
          e2e.openpgp.packet.EncryptedSessionKey) {
     eskPackets.push(packets.shift());
   }
+  if (eskPackets.length == 0) {
+    throw new e2e.openpgp.error.ParseError(
+        'Invalid encrypted message: no encrypted session key.');
+  }
   if (packets[0] instanceof
          e2e.openpgp.packet.EncryptedData) {
     var encryptedData = packets.shift();
   } else {
     throw new e2e.openpgp.error.ParseError(
-        'Invalid EncryptedMessage. Missing encrypted data block.');
+        'Invalid encrypted message: no encrypted data!');
   }
 
   this.eskPackets = eskPackets;
@@ -377,19 +387,19 @@ e2e.openpgp.block.EncryptedMessage.construct = function(
     }), goog.isDefAndNotNull);
   if (publicKeys.length == 0 && passphrases.length == 0) {
     throw new e2e.openpgp.error.InvalidArgumentsError(
-      'No public key nor passphrase was provided, encryption is impossible.');
+      'Neither a public key nor a passphrase was provided; encryption is impossible.');
   }
   // Optionally sign the message.
   var sigKeyPacket = opt_signatureKey && opt_signatureKey.getKeyToSign();
   if (opt_signatureKey && !sigKeyPacket) {
     // Signature was requested, but no provided key can sign.
     throw new e2e.openpgp.error.InvalidArgumentsError(
-      'Provided key does not have a signing capability.');
+      'Provided private key cannot sign messages.');
   }
   if (sigKeyPacket) {
     // Creates OnePassSignature + LiteralData + Signature sequence.
     // That sequence will be later compressed and encrypted.
-    // This allows e.g. GnuPG to verify the signature.
+    // This allows, e.g., GnuPG to verify the signature.
     literalMessage.signWithOnePass(sigKeyPacket);
   }
   var cipher = /** @type {e2e.cipher.SymmetricCipher} */ (
