@@ -110,6 +110,13 @@ e2e.cipher.Rsa.prototype.setKey = function(key) {
   goog.asserts.assertArray(key['n'], 'Modulus should be defined.');
   goog.asserts.assertArray(key['e'], 'Public exponent should be defined.');
   this.modulus = new e2e.BigNumModulus(key['n']);
+  var exponent = new e2e.BigNum(key['e']);
+  // Ranked in order of popularity. 3 is more popular than 17 or 65537 for OpenPGP
+  // keys, but is probably best avoided.
+  if (! (exponent.isEqual(5) || exponent.isEqual(41) || exponent.isEqual(11)
+      || exponent.isEqual(17) || exponent.isEqual(65537))) {
+    throw new e2e.cipher.Error('Invalid exponent: only exponents 3, 5, 11, 17, 41, and 65537 are supported.');
+  }
   var bitLength = this.modulus.getBitLength();
   switch (true) {
     // TODO(user): Reject < 1024 bit keys (we use them in unit tests).
