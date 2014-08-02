@@ -46,8 +46,7 @@ goog.require('goog.asserts');
  * @param {!e2e.cipher.Cipher|!e2e.signer.Signer} cipher
  *     An instance of the cipher used.
  * @param {!e2e.ByteArray=} opt_fingerprint The fingerprint of the key.
- * @param {!e2e.ByteArray=} opt_keyId The key ID of the key. Should be
- *     passed in for v3 keys, but not for v4 keys.
+ * @param {!e2e.ByteArray=} opt_keyId The key ID of the key.
  * @extends {e2e.openpgp.packet.Key}
  * @constructor
  */
@@ -119,12 +118,7 @@ e2e.openpgp.packet.PublicKey.prototype.serializePacketBody =
         cipherId,
         keyData);
   } else if (this.version == 3 || this.version == 2) {
-    return goog.array.flatten(
-        this.version,
-        e2e.dwordArrayToByteArray([this.timestamp]),
-        0, 0, // TODO(user) days until expiration
-        cipherId,
-        keyData);
+    throw new e2e.opengpg.error.SerializationError('V3 keys not supported.');
   } else {
     throw new e2e.openpgp.error.SerializationError('Unknown version.');
   }
@@ -156,14 +150,11 @@ e2e.openpgp.packet.PublicKey.prototype.getPublicKeyPacket = function() {
 e2e.openpgp.packet.PublicKey.parse = function(body) {
   var fingerprintCopy = body.slice();
   var version = body.shift();
-  if (version != 4 && version != 3 && version != 2) {
+  if (version != 4) {
     throw new e2e.openpgp.error.UnsupportedError(
         'Deprecated key packet version.');
   }
   var timestamp = e2e.byteArrayToDwordArray(body.splice(0, 4))[0];
-  if (version == 3 || version == 2) {
-    var daysUntilExpiration = e2e.byteArrayToWord(body.splice(0, 2));
-  }
   var cipherId = body.shift();
   var cipherAlgorithm = e2e.openpgp.constants.getAlgorithm(
       e2e.openpgp.constants.Type.PUBLIC_KEY, cipherId);
@@ -243,20 +234,6 @@ e2e.openpgp.packet.PublicKey.parse = function(body) {
           /** @type {e2e.cipher.Algorithm} */ (cipherAlgorithm),
           keyData);
     }
-  } else {
-    // We threw an exception earlier if it wasn't 2, 3, or 4
-    goog.asserts.assert(version == 3 || version == 2);
-
-    // For a V3 key, the eight-octet Key ID consists of the low 64 bits of
-    // the public modulus of the RSA key.
-    keyId = keyData['n'].slice(-8);
-
-    // The fingerprint of a V3 key is formed by hashing the body (but not
-    // the two-octet length) of the MPIs that form the key material (public
-    // modulus n, followed by exponent e) with MD5.
-    var md5 = new e2e.hash.Md5();
-    fingerprint = /** @type {!e2e.ByteArray} */ (md5.hash(
-        goog.array.concat(keyData['n'], keyData['e'])));
   }
 
   return new e2e.openpgp.packet.PublicKey(version, timestamp,
