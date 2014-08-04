@@ -1,0 +1,78 @@
+<!-- Copyright 2012 Google Inc. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// -->
+<!DOCTYPE html>
+<title>Unit Test of e2e.openpgp.SymmetricallyEncrypted and
+  e2e.openpg.SymmetricallyEncryptedIntegrity</title>
+<script src="../../../../closure/base.js"></script>
+<script src="test_js_deps-runfiles.js"></script>
+<script>
+  goog.require('e2e.cipher.Aes');
+  goog.require('e2e.cipher.Des');
+  goog.require('e2e.openpgp.packet.SymmetricallyEncrypted');
+  goog.require('e2e.openpgp.packet.SymmetricallyEncryptedIntegrity');
+  goog.require('e2e.random');
+  goog.require('goog.array');
+  goog.require('goog.crypt');
+  goog.require('goog.testing.jsunit');
+</script>
+<script>
+  function testSeiIsRandomized() {
+    var aes = new e2e.cipher.Aes(e2e.cipher.Algorithm.AES128,
+      {key:goog.array.repeat(0x77, 16)});
+
+    var payload = e2e.stringToByteArray("test");
+    var packet1 = e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.construct(
+        payload, aes).serializePacketBody();
+    var packet2 = e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.construct(
+        payload, aes).serializePacketBody();
+    assertFalse("The prefix is not random with p ~ 1-2^-128", 
+        goog.array.equals(packet1, packet2));
+    assertTrue("Two encryptions of the same payload produced encryptions of"
+        + "differengt lengths.", packet1.length === packet2.length);
+  }
+/*
+  function testSeiEncryptKats() {
+// TODO
+  }
+
+  function testSeiDecryptKats() {
+    // Extracted from GnuPG's output.
+    var input;
+    // The same key -- SHA2-512('test')[:32] -- is used for all of these KATs.
+    var key = goog.crypt.hexToByteArray(
+        "ee26b0dd4af7e749aa1a8ee3c10ae9923f618980772e473f8819a5d4940e0db2");
+    var sei;
+    var expected = goog.crypt.stringToByteArray("test");
+    var packets = {
+      'AES256':
+        '012faa71ccda5c5bf33785ac9ae1eec4d8653ff63a42e51d5c2dea6968cc65c20cc858435bcc2d0695212f37b368b6cc1e74946c4d086aabdac9e62ff776c33729',
+      'BLOWFISH': 
+        '0128946d59310c85d36501f8f5503518eb0069d79adb4f7efe45c854381b20449e969c23777bc56310931d5175d816287eaa87c1691061995e',
+      'TRIPLE_DES':
+        '011c6ea3314022019f6dd30b9b9d42b3ab7defb5f6a90f95c912386928eb5f73fbf65d84df43c5e06ef4b3bca2a90ad46dc502b80bb778eb35',
+      'IDEA':
+        '013c0a4043bdd9c8514c425cc800cce5ae32e3361b716277a9e1182758318272a660025c04838077fd657fe0aa51d52b48961e1779a683e629',
+      'CAST5':
+        '01cbd0e3ce686ad02006dea9c6b1b267ce16db5d69dc264ce23407a032d0a16f793f6e51ce8612378803c315458c4225e4f7708576f75747dd',
+      'AES128':
+        '013e4aaf2ff294de285a98e86a7c9674cc7d0d4e967f88a1dbfa56b35a7ad9437dc7ca39a6170051f8ea184b0a4610aa31b0acfd97dbd18a8ccfa6620f96018e76',
+      'TWOFISH':
+        '0157ad4e0c55c465da861e75cae9d6fa396df6d1f3b4520b91613cb99a85baa73d06e66bb50ba144e8b55ff229c6c9ee97fd2f575b0c2f83f65b5080c9ee446e90',
+      'AES192':
+        '013ae2ad22e70549e4c468859799997d04f0e72c29fd8516ed70836a263ae2b8400cd46b08500ee9dec203ede646c3e8ec85546f93b968241a38abcc605dbf935b'};
+  } 
+*/
+</script>
+

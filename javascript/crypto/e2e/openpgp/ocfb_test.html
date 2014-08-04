@@ -36,15 +36,13 @@
                       plaintext,
                       deciphered);
   }
-  function testKatNoResync() {
+  function testKatNoResyncThrows() {
     var aes = new e2e.cipher.Aes(e2e.cipher.Algorithm.AES128,
                                          {key:goog.array.repeat(0x77, 16)});
     var aesocfb = new e2e.openpgp.Ocfb(aes, false);
     var plaintext = goog.array.repeat(0x66, 51);
     var ciphertext = goog.crypt.hexToByteArray("f26a24f487a3abd4d81f8072a1a2924364beba531a6b855f0239cda666eecf3f47c98dc52ea3bfd60773f1a40b182577789c0149d3010d84d90f85001e755b79eaaa67a52f");
-    var deciphered = e2e.async.Result.getValue(aesocfb.decrypt(ciphertext));
-    assertArrayEquals("OpenPGP-CFB resync=false (AES128) KAT.",
-                      plaintext,
-                      deciphered);
+    assertThrows("OpenPGP-CFB resync=false throws.",
+        function () { aesocfb.decrypt(ciphertext); } );
   }
 </script>
