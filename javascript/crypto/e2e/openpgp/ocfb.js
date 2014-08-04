@@ -54,8 +54,11 @@ e2e.openpgp.Ocfb.prototype.decrypt = function(data, opt_iv) {
   if (this.resync) {
     iv = data.slice(2, this.cipher.blockSize + 2);
   } else {
-    iv = data.slice(0, this.cipher.blockSize);
+    throw e2e.openpgp.error.UnsupportedError(
+      "OpenPGP-CFB mode with no resynchronization is not supported " +
+      "without a modification detection code.");
   }
+  // TODO(dlg): Is this right?
   data = data.slice(this.cipher.blockSize + 2);
   return this.cfb.decrypt(data, iv);
 };
