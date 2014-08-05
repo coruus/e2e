@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 /**
  * @fileoverview Symmetric-Key Encrypted Session Key packet.
  * @author adhintz@google.com (Drew Hintz)
@@ -33,6 +34,7 @@ goog.require('e2e.openpgp.packet.EncryptedSessionKey');
 goog.require('e2e.openpgp.packet.factory');
 goog.require('e2e.random');
 goog.require('goog.array');
+
 
 
 /**
@@ -68,22 +70,22 @@ e2e.openpgp.packet.SymmetricKey.prototype.decryptSessionKey =
   // Make a cipher just to see the key length that we want.
   var cipher = /** @type {e2e.cipher.SymmetricCipher} */ (
       e2e.openpgp.constants.getInstance(
-        e2e.openpgp.constants.Type.SYMMETRIC_KEY,
-        this.algorithm));
+      e2e.openpgp.constants.Type.SYMMETRIC_KEY,
+      this.algorithm));
   key = {'key': this.s2k_.getKey(passphrase, cipher.keySize)};
   if (this.encryptedKey.length > 0) {
     cipher.setKey(key);
     var iv = goog.array.repeat(0, cipher.blockSize);
     var cfbCipher = new e2e.ciphermode.Cfb(cipher);
     return cfbCipher.decrypt(
-        /** @type !e2e.ByteArray */(this.encryptedKey), iv).addCallback(
+        /** @type {!e2e.ByteArray} */(this.encryptedKey), iv).addCallback(
         function(decoded) {
           try {
             this.symmetricAlgorithm =
                 /** @type {e2e.cipher.Algorithm} */ (
                 e2e.openpgp.constants.getAlgorithm(
-                  e2e.openpgp.constants.Type.SYMMETRIC_KEY,
-                  decoded.shift()));
+               e2e.openpgp.constants.Type.SYMMETRIC_KEY,
+               decoded.shift()));
           } catch (e) {
             if (e instanceof e2e.openpgp.error.UnsupportedError) {
               // We have invalid algorithm, therefore decryption failed.
@@ -94,7 +96,7 @@ e2e.openpgp.packet.SymmetricKey.prototype.decryptSessionKey =
           }
           this.sessionKey = {'key': decoded};
           return true;
-    }, this);
+        }, this);
   } else { // No ESK, so just use the s2k for the session key.
     this.symmetricAlgorithm = this.algorithm;
     this.sessionKey = key; // already a keyObj
@@ -133,8 +135,8 @@ e2e.openpgp.packet.SymmetricKey.construct =
       255);  // Crank it to the max.
   var cipher = /** @type {e2e.cipher.SymmetricCipher} */ (
       e2e.openpgp.constants.getInstance(
-        e2e.openpgp.constants.Type.SYMMETRIC_KEY,
-        e2e.cipher.Algorithm.AES256));
+      e2e.openpgp.constants.Type.SYMMETRIC_KEY,
+      e2e.cipher.Algorithm.AES256));
   cipher.setKey({'key': s2k.getKey(passphrase, cipher.keySize)});
   var cfbCipher = new e2e.ciphermode.Cfb(cipher);
   var unencryptedKeyData = goog.array.concat(
@@ -142,7 +144,7 @@ e2e.openpgp.packet.SymmetricKey.construct =
       sessionKey);
   var result = cfbCipher.encrypt(unencryptedKeyData,
       goog.array.repeat(0, cipher.blockSize));  // IV
-  var encryptedKey = /** @type !e2e.ByteArray */(
+  var encryptedKey = /** @type {!e2e.ByteArray} */(
       e2e.async.Result.getValue(result));
   var packet = new e2e.openpgp.packet.SymmetricKey(
       4, //version
@@ -161,7 +163,7 @@ e2e.openpgp.packet.SymmetricKey.parse = function(body) {
         'Unknown SKESK packet version.');
   }
   var algorithmId = body.shift();
-  var algorithm = /** @type e2e.cipher.Algorithm.<string> */ (
+  var algorithm = /** @type {e2e.cipher.Algorithm.<string>} */ (
       e2e.openpgp.constants.getAlgorithm(
           e2e.openpgp.constants.Type.SYMMETRIC_KEY, algorithmId));
   var s2k = e2e.openpgp.S2k.parse(body);

@@ -11,6 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
 /**
  * @fileoverview Symmetrically Encrypted Data packet.
  * @author adhintz@google.com (Drew Hintz)
@@ -33,6 +34,7 @@ goog.require('e2e.openpgp.packet.EncryptedData');
 goog.require('e2e.openpgp.packet.factory');
 goog.require('e2e.random');
 goog.require('goog.array');
+
 
 
 /**
@@ -58,20 +60,20 @@ e2e.openpgp.packet.SymmetricallyEncrypted.prototype.tag = 9;
 e2e.openpgp.packet.SymmetricallyEncrypted.prototype.decrypt =
     function(algorithm, keyObj) {
   var algorithm_name = e2e.openpgp.constants.getAlgorithm(
-       e2e.openpgp.constants.Type.SYMMETRIC_KEY,
-       algorithm);
+      e2e.openpgp.constants.Type.SYMMETRIC_KEY,
+      algorithm);
   var allowedAlgo = e2e.openpgp.InsecureSymmetricAlgorithm[
-       algorithm_name];
+      algorithm_name];
   if (!allowedAlgo) {
     throw new e2e.openpgp.error.UnsupportedError(
-      "Only CAST5, IDEA, Blowfish, and TDES are supported for packets "
-      + "encrypted without integrity protection.");
+        'Only CAST5, IDEA, Blowfish, and TDES are supported for packets ' +
+        'encrypted without integrity protection.');
   }
   var cipher = /** @type {e2e.cipher.SymmetricCipher} */ (
       e2e.openpgp.constants.getInstance(
           e2e.openpgp.constants.Type.SYMMETRIC_KEY, algorithm, keyObj));
   var ocfbCipher = new e2e.openpgp.Ocfb(cipher, true);
-  this.data = /** @type !e2e.ByteArray */ (
+  this.data = /** @type {!e2e.ByteArray} */ (
       e2e.async.Result.getValue(ocfbCipher.decrypt(this.encryptedData, [])));
 };
 
@@ -96,6 +98,7 @@ e2e.openpgp.packet.SymmetricallyEncrypted.parse =
 
 e2e.openpgp.packet.factory.add(
     e2e.openpgp.packet.SymmetricallyEncrypted);
+
 
 
 /**
@@ -142,31 +145,39 @@ e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.prototype.decrypt =
 };
 
 
+
 /**
+ * @constructor
+ *
  * Makes a Symmetrically Encrypted Integrity-protected packet containing the
  * specified plaintext packet. Does the encryption and creates the MDC.
  * @param {!e2e.ByteArray} innerPacket The unencrypted inner packet.
  * @param {!e2e.cipher.SymmetricCipher} cipher The cipher to use for encryption.
+ *
  * @return {e2e.openpgp.packet.SymmetricallyEncryptedIntegrity}
  */
 e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.construct = function(
     innerPacket, cipher) {
   var prefix = e2e.random.getRandomBytes(cipher.blockSize);
   return this.constructWithPrefix_(
-    innerPacket, cipher, prefix);
+      innerPacket, cipher, prefix);
 };
 
+
 /**
- * @private 
+ * @private
  *
  * Makes a Symmetrically Encrypted Integrity-protected packet containing the
  * specified plaintext packet. Does the encryption and creates the MDC.
  * @param {!e2e.ByteArray} innerPacket The unencrypted inner packet.
  * @param {!e2e.cipher.SymmetricCipher} cipher The cipher to use for encryption.
+ * @param {!e2e.ByteArray} prefix The prefix (of length cipher.blockSize) to
+ * prepend to the message.
+ *
  * @return {e2e.openpgp.packet.SymmetricallyEncryptedIntegrity}
  */
-e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.constructWithPrefix_ = function(
-  innerPacket, cipher, prefix) {
+e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.constructWithPrefix_ =
+    function(innerPacket, cipher, prefix) {
   var plaintext = goog.array.concat(prefix,
       prefix[prefix.length - 2],  // Last two bytes of prefix are repeated.
       prefix[prefix.length - 1],
@@ -177,16 +188,17 @@ e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.constructWithPrefix_ = functi
   goog.array.extend(plaintext, mdcCalculated);
   var iv = goog.array.repeat(0, cipher.blockSize);
   var cfbCipher = new e2e.ciphermode.Cfb(cipher);
-  var ciphertext = /** @type !e2e.ByteArray */ (
+  var ciphertext = /** @type {!e2e.ByteArray} */ (
       e2e.async.Result.getValue(cfbCipher.encrypt(plaintext, iv)));
   var packet = new e2e.openpgp.packet.SymmetricallyEncryptedIntegrity(
       ciphertext);
   return packet;
-}
+};
+
 
 /** @inheritDoc */
 e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.prototype.
-serializePacketBody = function() {
+    serializePacketBody = function() {
   // SEIP has a prefix byte of version 1.
   return goog.array.concat(1, this.encryptedData);
 };
@@ -202,8 +214,9 @@ e2e.openpgp.packet.SymmetricallyEncryptedIntegrity.parse =
     function(body) {
   var version = body.shift();
   if (version != 1) {
-    throw new e2e.openpgp.error.ParseError("Unknown Tag 18 (symmetrically "
-        + "encrypted and integrity protected data)) packet version.");
+    throw new e2e.openpgp.error.ParseError(
+        'Unknown Tag 18 (symmetrically encrypted integrity protected data) ' +
+        'packet version.');
   }
   return new e2e.openpgp.packet.SymmetricallyEncryptedIntegrity(body);
 };

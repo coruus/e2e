@@ -37,6 +37,7 @@ goog.require('goog.asserts');
 goog.require('goog.object');
 
 
+
 /**
  * Generates an S2K object with the specified type, salt and count as specified
  * in RFC 4880 Section 3.7. We have subclasses for the different types of S2K.
@@ -147,6 +148,8 @@ e2e.openpgp.S2k.parse = function(bytes) {
   throw new e2e.openpgp.error.ParseError('Invalid S2K type.');
 };
 
+
+
 /**
  * Implements a dummy S2k algorithm for E2E.
  * @param {e2e.hash.Hash} hash An instance of the hash algorithm to use.
@@ -157,8 +160,8 @@ e2e.openpgp.S2k.parse = function(bytes) {
  */
 e2e.openpgp.DummyS2k = function(hash, header, mode) {
   goog.asserts.assert(
-    header.length === e2e.openpgp.DummyS2k.E2E_HEADER.length &&
-    header.length === e2e.openpgp.DummyS2k.GPG_HEADER.length);
+      header.length === e2e.openpgp.DummyS2k.E2E_HEADER.length &&
+      header.length === e2e.openpgp.DummyS2k.GPG_HEADER.length);
   var is_e2e = goog.array.equals(header, e2e.openpgp.DummyS2k.E2E_HEADER);
   var is_gpg = goog.array.equals(header, e2e.openpgp.DummyS2k.GPG_HEADER);
 
@@ -182,6 +185,7 @@ e2e.openpgp.DummyS2k = function(hash, header, mode) {
 };
 goog.inherits(e2e.openpgp.DummyS2k, e2e.openpgp.S2k);
 
+
 /**
  * Enum for different dummy S2ks
  * @enum {number}
@@ -191,11 +195,14 @@ e2e.openpgp.DummyS2k.DummyTypes = {
   E2E: 1
 };
 
+
 /** @type {!e2e.openpgp.DummyS2k.DummyTypes} */
 e2e.openpgp.DummyS2k.prototype.dummy_;
 
+
 /** @type {e2e.openpgp.DummyS2k.GPG_modes | e2e.openpgp.DummyS2k.E2E_modes} */
 e2e.openpgp.DummyS2k.prototype.mode_;
+
 
 /**
  * Enum for GPG modes
@@ -205,6 +212,7 @@ e2e.openpgp.DummyS2k.GPG_modes = {
   NO_SECRET: 0x01,
   SMARTCARD_STUB: 0x02
 };
+
 
 /**
  * Enum for E2E modes (currently, upper 6 bits are reserved for future
@@ -221,26 +229,32 @@ e2e.openpgp.DummyS2k.E2E_modes = {
 /** @inheritDoc */
 e2e.openpgp.DummyS2k.prototype.type = e2e.openpgp.S2k.Type.DUMMY;
 
+
 /** @inheritDoc */
 e2e.openpgp.DummyS2k.prototype.getKey = function(passphrase, length) {
   throw new e2e.openpgp.error.UnsupportedError(
       'Cannot get key from special locations!');
 };
 
+
 /** @type {!e2e.ByteArray} */
 e2e.openpgp.DummyS2k.GPG_HEADER = [0x47, 0x4e, 0x55]; // 'GNU'
 
+
 /** @type {!e2e.ByteArray} */
 e2e.openpgp.DummyS2k.E2E_HEADER = [0x45, 0x32, 0x45]; // 'E2E'
+
 
 /** @inheritDoc */
 e2e.openpgp.DummyS2k.prototype.serialize = function() {
   return goog.array.concat(
       goog.base(this, 'serialize'),
       this.is_e2e_ ? e2e.openpgp.DummyS2k.E2E_HEADER :
-        e2e.openpgp.DummyS2k.GPG_HEADER,
+      e2e.openpgp.DummyS2k.GPG_HEADER,
       this.mode_);
 };
+
+
 
 /**
  * Implements the Simple S2K algorithm.
@@ -334,7 +348,7 @@ e2e.openpgp.IteratedS2K = function(hash, salt, encodedCount) {
   }
   if (!e2e.isByte(encodedCount)) {
     throw new e2e.openpgp.error.InvalidArgumentsError(
-      'Invalid encoded count.');
+        'Invalid encoded count.');
   }
   /**
    * The salt to use for the S2K. Must be 8 bytes long.
@@ -409,7 +423,7 @@ e2e.openpgp.IteratedS2K.prototype.getKeySha256_ = function(passphrase, length) {
     // first counterexample.)
   }
   return sha.digest().slice(0, length);
-}
+};
 
 
 /** @inheritDoc */
@@ -417,7 +431,7 @@ e2e.openpgp.IteratedS2K.prototype.getKey = function(passphrase, length) {
   if ((this.hash.algorithm === e2e.hash.Algorithm.SHA256)
       && (length <= 32)
       && this.useShaFastPath_) {
-        return this.getKeySha256_(passphrase, length);
+    return this.getKeySha256_(passphrase, length);
   }
   var salted_passphrase = this.salt_.concat(passphrase);
   var count = this.count_;
@@ -506,6 +520,6 @@ e2e.openpgp.IteratedS2K.getCount_ = function(c) {
                                    e2e.openpgp.IteratedS2K.EXPBIAS_);
   } else {
     throw new e2e.openpgp.error.InvalidArgumentsError(
-      'Invalid encoded count.');
+        'Invalid encoded count.');
   }
 };
